@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b6e4f">
+<meta name="description" content="OrderBox - আপনার অনলাইন অর্ডার ম্যানেজার">
+<link rel="manifest" href="manifest.json">
+<title>OrderBox</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--green:#0b6e4f;--dark:#1f2933;--bg:#f4f7f6;--muted:#6b7280}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,"Noto Sans Bengali",sans-serif;color:var(--dark)}
+header{background:var(--green);color:#fff;padding:18px 16px;position:sticky;top:0;z-index:2}
+header h1{margin:0;font-size:23px}
+header p{margin:4px 0 0;font-size:13px;opacity:.9}
+main{max-width:850px;margin:auto;padding:16px}
+.panel,.stat{background:#fff;border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 2px 10px #14251b0a}
+h2{font-size:18px;margin:0 0 12px}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 5px}
+input,select,button{font:inherit;width:100%;padding:12px;border-radius:10px;border:1px solid #d9e1dd;background:white}
+button{background:var(--green);color:#fff;border:0;font-weight:650;cursor:pointer;margin-top:10px}
+button.secondary{background:#e8f2ed;color:var(--green)}
+button.danger{background:#9f2d2d}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.stat small{color:var(--muted)}
+.stat strong{display:block;font-size:23px;margin-top:5px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{margin:0}
+.tabs button.active{background:var(--dark)}
+.order{border:1px solid #e5eae7;padding:12px;border-radius:12px;margin-top:10px}
+.order-top{display:flex;justify-content:space-between;gap:10px;align-items:start}
+.amount{font-weight:750;color:var(--green);white-space:nowrap}
+.order p{margin:5px 0;color:var(--muted);font-size:13px}
+.order-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.hidden{display:none!important}
+.hint{font-size:12px;color:var(--muted);line-height:1.5}
+.message{padding:10px;border-radius:9px;background:#e8f2ed;margin-bottom:12px;font-size:13px;white-space:pre-wrap}
+@media(min-width:600px){
+.grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+}
+</style>
+</head>
+<body>
+
+<header>
+<h1>OrderBox</h1>
+<p>আপনার অনলাইন অর্ডার ম্যানেজার</p>
+</header>
+
+<main>
+<div id="message" class="message hidden"></div>
+
+<section id="setup" class="panel">
+<h2>Supabase সেটআপ</h2>
+<p class="hint">অ্যাপ চালানোর জন্য Supabase URL ও anon/publishable key কোডে বসান।</p>
+</section>
+
+<section id="auth" class="panel">
+<h2>অ্যাকাউন্টে প্রবেশ</h2>
+
+<label for="email">ইমেইল</label>
+<input id="email" type="email" autocomplete="email" placeholder="আপনার ইমেইল">
+
+<label for="password">পাসওয়ার্ড</label>
+<input id="password" type="password" autocomplete="current-password" placeholder="কমপক্ষে ৬ অক্ষর">
+
+<div class="grid">
+<button id="loginBtn">লগইন</button>
+<button id="signupBtn" class="secondary">নতুন অ্যাকাউন্ট</button>
+</div>
+
+<p class="hint">একই অর্ডার দেখতে প্রতিটি মোবাইলে অনুমোদিত অ্যাকাউন্ট দিয়ে লগইন করুন।</p>
+</section>
+
+<div id="app" class="hidden">
+
+<div class="panel">
+<div class="order-top">
+<div>
+<h2 style="margin-bottom:4px">ড্যাশবোর্ড</h2>
+<span class="hint" id="signedIn"></span>
+</div>
+<button id="logoutBtn" class="secondary" style="width:auto;margin:0">লগআউট</button>
+</div>
+
+<div class="grid" style="margin-top:14px">
+<div class="stat">
+<small>মোট অর্ডার</small>
+<strong id="totalOrders">০</strong>
+</div>
+<div class="stat">
+<small>মোট বিক্রি</small>
+<strong id="totalSales">৳০</strong>
+</div>
+<div class="stat">
+<small>পেন্ডিং</small>
+<strong id="pendingOrders">০</strong>
+</div>
+<div class="stat">
+<small>ডেলিভারড</small>
+<strong id="deliveredOrders">০</strong>
+</div>
+</div>
+</div>
+
+<div class="tabs">
+<button class="active" data-tab="orders">অর্ডার</button>
+<button data-tab="add">+ অর্ডার যোগ</button>
+</div>
+
+<section id="ordersTab" class="panel">
+<h2>অর্ডার তালিকা</h2>
+<input id="search" placeholder="নাম, ফোন বা পণ্য দিয়ে খুঁজুন">
+<div id="ordersList"></div>
+</section>
+
+<section id="addTab" class="panel hidden">
+<h2>নতুন অর্ডার</h2>
+
+<div class="formgrid">
+<div>
+<label for="customer">কাস্টমারের নাম *</label>
+<input id="customer" placeholder="নাম লিখুন">
+</div>
+
+<div>
+<label for="phone">মোবাইল নম্বর</label>
+<input id="phone" type="tel" placeholder="01XXXXXXXXX">
+</div>
+
+<div>
+<label for="product">পণ্যের নাম *</label>
+<input id="product" placeholder="যেমন: বাঁশের বাতি">
+</div>
+
+<div>
+<label for="quantity">পরিমাণ</label>
+<input id="quantity" type="number" min="1" value="1">
+</div>
+
+<div>
+<label for="amount">মোট টাকা (৳) *</label>
+<input id="amount" type="number" min="0" step="0.01" placeholder="0">
+</div>
+
+<div>
+<label for="source">অর্ডারের উৎস</label>
+<select id="source">
+<option>সরাসরি</option>
+<option>Facebook</option>
+<option>WhatsApp</option>
+<option>Instagram</option>
+<option>ফোন</option>
+</select>
+</div>
+
+<div>
+<label for="status">স্ট্যাটাস</label>
+<select id="status">
+<option>পেন্ডিং</option>
+<option>কনফার্মড</option>
+<option>ডেলিভারড</option>
+<option>বাতিল</option>
+</select>
+</div>
+
+<div>
+<label for="address">ঠিকানা</label>
+<input id="address" placeholder="ডেলিভারির ঠিকানা">
+</div>
+</div>
+
+<button id="saveOrder">অর্ডার সংরক্ষণ করুন</button>
+</section>
+
+<p class="hint">Facebook ও WhatsApp-এর ইনবক্স সরাসরি দেখতে আলাদা API এবং অনুমতি প্রয়োজন।</p>
+</div>
+</main>
+
+<script>
+/*
+=====================================================
+SUPABASE CONFIGURATION
+নিজের Supabase Dashboard থেকে নিচের তথ্য বসান।
+
+Project URL:
+Supabase Dashboard → Project Settings → API
+
+Publishable/anon key:
+Supabase Dashboard → Project Settings → API Keys
+
+কখনো service_role বা secret key এখানে বসাবেন না।
+=====================================================
+*/
+
+const SUPABASE_URL = "PASTE_YOUR_SUPABASE_PROJECT_URL_HERE";
+const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
+
+let db = null;
+let currentOrders = [];
+let channel = null;
+
+const $ = id => document.getElementById(id);
+
+function showMessage(text) {
+    $("message").textContent = text;
+    $("message").classList.remove("hidden");
+}
+
+function hideMessage() {
+    $("message").classList.add("hidden");
+}
+
+function bn(number) {
+    return Number(number || 0).toLocaleString("bn-BD");
+}
+
+function money(number) {
+    return "৳" + Number(number || 0).toLocaleString("bn-BD", {
+        maximumFractionDigits: 2
+    });
+}
+
+function setupReady() {
+    return SUPABASE_URL.startsWith("https://") &&
+        !SUPABASE_URL.includes("PASTE_") &&
+        !SUPABASE_ANON_KEY.includes("PASTE_") &&
+        SUPABASE_ANON_KEY.length > 20;
+}
+
+if (setupReady() && window.supabase) {
+    db = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY
+    );
+    $("setup").classList.add("hidden");
+} else {
+    $("auth").classList.add("hidden");
+    showMessage(
+        "Supabase URL ও anon/publishable key বসানো হয়নি, অথবা Supabase লাইব্রেরি লোড হয়নি।"
+    );
+}
+
+async function login(signup = false) {
+    hideMessage();
+
+    if (!db) {
+        showMessage("আগে Supabase URL ও key বসান।");
+        return;
+    }
+
+    const email = $("email").value.trim();
+    const password = $("password").value;
+
+    if (!email || password.length < 6) {
+        showMessage("সঠিক ইমেইল দিন এবং অন্তত ৬ অক্ষরের পাসওয়ার্ড লিখুন।");
+        return;
+    }
+
+    let result;
+
+    if (signup) {
+        result = await db.auth.signUp({
+            email: email,
+            password: password
+        });
+    } else {
+        result = await db.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+    }
+
+    if (result.error) {
+        showMessage(result.error.message);
+        return;
+    }
+
+    if (signup && !result.data.session) {
+        showMessage(
+            "অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল যাচাই করতে বললে ইমেইল যাচাই করে তারপর লগইন করুন।"
+        );
+        return;
+    }
+
+    await startApp();
+}
+
+$("loginBtn").onclick = () => login(false);
+$("signupBtn").onclick = () => login(true);
+
+$("logoutBtn").onclick = async () => {
+    if (!db) return;
+
+    if (channel) {
+        await db.removeChannel(channel);
+        channel = null;
+    }
+
+    await db.auth.signOut();
+
+    $("app").classList.add("hidden");
+    $("auth").classList.remove("hidden");
+    $("email").value = "";
+    $("password").value = "";
+    showMessage("আপনি লগআউট করেছেন।");
+};
+
+async function startApp() {
+    if (!db) return;
+
+    const { data, error } = await db.auth.getUser();
+
+    if (error || !data.user) {
+        showMessage("লগইন যাচাই করা যায়নি। আবার লগইন করুন।");
+        return;
+    }
+
+    $("auth").classList.add("hidden");
+    $("app").classList.remove("hidden");
+    $("signedIn").textContent = data.user.email || "লগইন করা হয়েছে";
+
+    await loadOrders();
+
+    if (channel) {
+        await db.removeChannel(channel);
+    }
+
+    channel = db
+        .channel("orderbox-live")
+        .on(
+            "postgres_changes",
+            {
+                event: "*",
+                schema: "public",
+                table: "orders"
+            },
+            () => loadOrders()
+        )
+        .subscribe();
+}
+
+async function loadOrders() {
+    if (!db) return;
+
+    const { data, error } = await db
+        .from("orders")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        showMessage(
+            "অর্ডার লোড হয়নি: " + error.message
+        );
+        return;
+    }
+
+    currentOrders = data || [];
+    renderOrders();
+}
+
+function renderOrders() {
+    const list = $("ordersList");
+    const query = $("search").value.trim().toLowerCase();
+
+    const filtered = currentOrders.filter(order => {
+        const searchable = [
+            order.customer_name,
+            order.phone,
+            order.product_name,
+            order.source,
+            order.status
+        ].join(" ").toLowerCase();
+
+        return searchable.includes(query);
+    });
+
+    $("totalOrders").textContent = bn(currentOrders.length);
+
+    $("totalSales").textContent = money(
+        currentOrders
+            .filter(order => order.status !== "বাতিল")
+            .reduce(
+                (sum, order) => sum + Number(order.amount || 0),
+                0
+            )
+    );
+
+    $("pendingOrders").textContent = bn(
+        currentOrders.filter(
+            order => order.status === "পেন্ডিং"
+        ).length
+    );
+
+    $("deliveredOrders").textContent = bn(
+        currentOrders.filter(
+            order => order.status === "ডেলিভারড"
+        ).length
+    );
+
+    if (!filtered.length) {
+        list.innerHTML =
+            '<p class="hint">কোনো অর্ডার পাওয়া যায়নি। নতুন অর্ডার যোগ করুন।</p>';
+        return;
+    }
+
+    list.innerHTML = filtered.map(order => `
+        <article class="order">
+            <div class="order-top">
+                <div>
+                    <strong>
+                        #${escapeHtml(order.order_no || order.id)}
+                        · ${escapeHtml(order.customer_name)}
+                    </strong>
+                    <p>
+                        ${escapeHtml(order.product_name)}
+                        × ${bn(order.quantity)}
+                        · ${escapeHtml(order.source || "সরাসরি")}
+                    </p>
+                </div>
+                <div class="amount">${money(order.amount)}</div>
+            </div>
+
+            <p>
+                ☎ ${escapeHtml(order.phone || "নম্বর নেই")}
+                ${order.address
+                    ? " · " + escapeHtml(order.address)
+                    : ""}
+            </p>
+
+            <div class="order-controls">
+                <select
+                    aria-label="অর্ডারের স্ট্যাটাস"
+                    onchange="updateStatus('${order.id}', this.value)"
+                >
+                    ${["পেন্ডিং", "কনফার্মড", "ডেলিভারড", "বাতিল"]
+                        .map(status => `
+                            <option
+                                value="${status}"
+                                ${order.status === status ? "selected" : ""}
+                            >${status}</option>
+                        `).join("")}
+                </select>
+
+                <button
+                    class="danger"
+                    style="margin:0"
+                    onclick="deleteOrder('${order.id}')"
+                >মুছুন</button>
+            </div>
+        </article>
+    `).join("");
+}
+
+function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    }[character]));
+}
+
+window.updateStatus = async (id, status) => {
+    if (!db) return;
+
+    const { error } = await db
+        .from("orders")
+        .update({ status: status })
+        .eq("id", id);
+
+    if (error) {
+        showMessage("স্ট্যাটাস পরিবর্তন হয়নি: " + error.message);
+        return;
+    }
+
+    await loadOrders();
+};
+
+window.deleteOrder = async id => {
+    if (!db) return;
+
+    if (!confirm("এই অর্ডারটি মুছে ফেলবেন?")) {
+        return;
+    }
+
+    const { error } = await db
+        .from("orders")
+        .delete()
+        .eq("id", id);
+
+    if (error) {
+        showMessage("অর্ডার মুছে ফেলা যায়নি: " + error.message);
+        return;
+    }
+
+    await loadOrders();
+    showMessage("অর্ডার মুছে ফেলা হয়েছে।");
+};
+
+$("saveOrder").onclick = async () => {
+    if (!db) {
+        showMessage("Supabase সংযোগ নেই।");
+        return;
+    }
+
+    const customer_name = $("customer").value.trim();
+    const product_name = $("product").value.trim();
+    const amountText = $("amount").value;
+    const amount = Number(amountText);
+    const quantity = Math.max(
+        1,
+        Number($("quantity").value) || 1
+    );
+
+    if (
+        !customer_name ||
+        !product_name ||
+        amountText === "" ||
+        !Number.isFinite(amount) ||
+        amount < 0
+    ) {
+        showMessage(
+            "কাস্টমারের নাম, পণ্যের নাম ও সঠিক টাকা পূরণ করুন।"
+        );
+        return;
+    }
+
+    const payload = {
+        customer_name: customer_name,
+        phone: $("phone").value.trim(),
+        product_name: product_name,
+        quantity: quantity,
+        amount: amount,
+        source: $("source").value,
+        status: $("status").value,
+        address: $("address").value.trim()
+    };
+
+    const { error } = await db
+        .from("orders")
+        .insert(payload);
+
+    if (error) {
+        showMessage("অর্ডার সংরক্ষণ হয়নি: " + error.message);
+        return;
+    }
+
+    [
+        "customer",
+        "phone",
+        "product",
+        "amount",
+        "address"
+    ].forEach(id => {
+        $(id).value = "";
+    });
+
+    $("quantity").value = "1";
+    $("source").value = "সরাসরি";
+    $("status").value = "পেন্ডিং";
+
+    showMessage("অর্ডার সফলভাবে সংরক্ষণ হয়েছে।");
+
+    await loadOrders();
+    switchTab("orders");
+};
+
+$("search").addEventListener("input", renderOrders);
+
+function switchTab(tab) {
+    document.querySelectorAll("[data-tab]").forEach(button => {
+        button.classList.toggle(
+            "active",
+            button.dataset.tab === tab
+        );
+    });
+
+    $("ordersTab").classList.toggle(
+        "hidden",
+        tab !== "orders"
+    );
+
+    $("addTab").classList.toggle(
+        "hidden",
+        tab !== "add"
+    );
+}
+
+document.querySelectorAll("[data-tab]").forEach(button => {
+    button.onclick = () => switchTab(button.dataset.tab);
+});
+
+if (db) {
+    db.auth.getSession().then(({ data, error }) => {
+        if (error) {
+            showMessage("সেশন যাচাই করা যায়নি।");
+            return;
+        }
+
+        if (data.session) {
+            startApp();
+        }
+    });
+}
+
+/* Service Worker registration: HTTPS বা localhost প্রয়োজন */
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker
+            .register("./service-worker.js")
+            .catch(error => {
+                console.error("Service Worker registration failed:", error);
+            });
+    });
+}
+</script>
+
+</body>
+</html>
