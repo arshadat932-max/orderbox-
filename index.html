@@ -21,6 +21,7 @@ h2{font-size:18px;margin:0 0 12px}
 label{display:block;font-size:13px;color:var(--muted);margin:10px 0 5px}
 input,select,button{font:inherit;width:100%;padding:12px;border-radius:10px;border:1px solid #d9e1dd;background:white}
 button{background:var(--green);color:#fff;border:0;font-weight:650;cursor:pointer;margin-top:10px}
+button:disabled{opacity:.6;cursor:wait}
 button.secondary{background:#e8f2ed;color:var(--green)}
 button.danger{background:#9f2d2d}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -72,7 +73,7 @@ button.danger{background:#9f2d2d}
 <button id="signupBtn" class="secondary">নতুন অ্যাকাউন্ট</button>
 </div>
 
-<p class="hint">একই অর্ডার দেখতে প্রতিটি মোবাইলে অনুমোদিত অ্যাকাউন্ট দিয়ে লগইন করুন।</p>
+<p class="hint">যেকোনো ইমেইল ও পাসওয়ার্ড দিয়ে "নতুন অ্যাকাউন্ট" চাপলে অ্যাকাউন্ট তৈরি হয়ে সাথে সাথে লগইন হবে। পরে একই ইমেইল দিয়ে "লগইন" করুন।</p>
 </section>
 
 <div id="app" class="hidden">
@@ -184,14 +185,6 @@ button.danger{background:#9f2d2d}
 /*
 =====================================================
 SUPABASE CONFIGURATION
-নিজের Supabase Dashboard থেকে নিচের তথ্য বসান।
-
-Project URL:
-Supabase Dashboard → Project Settings → API
-
-Publishable/anon key:
-Supabase Dashboard → Project Settings → API Keys
-
 কখনো service_role বা secret key এখানে বসাবেন না।
 =====================================================
 */
@@ -244,6 +237,25 @@ if (setupReady() && window.supabase) {
     );
 }
 
+/* ===== লগইন / নতুন অ্যাকাউন্ট (ঠিক করা) ===== */
+
+function bnError(msg) {
+    const m = (msg || "").toLowerCase();
+    if (m.includes("invalid login"))
+        return "ইমেইল বা পাসওয়ার্ড ভুল। এই ইমেইলে অ্যাকাউন্ট না থাকলে 'নতুন অ্যাকাউন্ট' চাপুন।";
+    if (m.includes("not confirmed"))
+        return "ইমেইল যাচাই করা হয়নি। Supabase-এ Authentication → Sign In / Providers → Email → Confirm email বন্ধ করুন।";
+    if (m.includes("rate limit"))
+        return "অনেকবার চেষ্টা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।";
+    if (m.includes("signups not allowed") || m.includes("signup is disabled") || m.includes("signups are disabled"))
+        return "নতুন অ্যাকাউন্ট খোলা বন্ধ আছে। Supabase-এ 'Allow new users to sign up' চালু করুন।";
+    if (m.includes("password"))
+        return "পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।";
+    if (m.includes("valid email") || m.includes("invalid email"))
+        return "সঠিক ইমেইল দিন।";
+    return msg;
+}
+
 async function login(signup = false) {
     hideMessage();
 
@@ -260,33 +272,39 @@ async function login(signup = false) {
         return;
     }
 
-    let result;
+    $("loginBtn").disabled = true;
+    $("signupBtn").disabled = true;
 
-    if (signup) {
-        result = await db.auth.signUp({
-            email: email,
-            password: password
-        });
-    } else {
-        result = await db.auth.signInWithPassword({
-            email: email,
-            password: password
-        });
+    try {
+        let result;
+
+        if (signup) {
+            result = await db.auth.signUp({ email: email, password: password });
+
+            if (!result.error && !result.data.session) {
+                result = await db.auth.signInWithPassword({ email: email, password: password });
+            } else if (
+                result.error &&
+                result.error.message.toLowerCase().includes("already")
+            ) {
+                result = await db.auth.signInWithPassword({ email: email, password: password });
+            }
+        } else {
+            result = await db.auth.signInWithPassword({ email: email, password: password });
+        }
+
+        if (result.error) {
+            showMessage(bnError(result.error.message));
+            return;
+        }
+
+        await startApp();
+    } catch (err) {
+        showMessage("সংযোগে সমস্যা হয়েছে। ইন্টারনেট চেক করে আবার চেষ্টা করুন।");
+    } finally {
+        $("loginBtn").disabled = false;
+        $("signupBtn").disabled = false;
     }
-
-    if (result.error) {
-        showMessage(result.error.message);
-        return;
-    }
-
-    if (signup && !result.data.session) {
-        showMessage(
-            "অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল যাচাই করতে বললে ইমেইল যাচাই করে তারপর লগইন করুন।"
-        );
-        return;
-    }
-
-    await startApp();
 }
 
 $("loginBtn").onclick = () => login(false);
@@ -319,6 +337,7 @@ async function startApp() {
         return;
     }
 
+    hideMessage();
     $("auth").classList.add("hidden");
     $("app").classList.remove("hidden");
     $("signedIn").textContent = data.user.email || "লগইন করা হয়েছে";
@@ -352,9 +371,7 @@ async function loadOrders() {
         .order("created_at", { ascending: false });
 
     if (error) {
-        showMessage(
-            "অর্ডার লোড হয়নি: " + error.message
-        );
+        showMessage("অর্ডার লোড হয়নি: " + error.message);
         return;
     }
 
@@ -383,22 +400,15 @@ function renderOrders() {
     $("totalSales").textContent = money(
         currentOrders
             .filter(order => order.status !== "বাতিল")
-            .reduce(
-                (sum, order) => sum + Number(order.amount || 0),
-                0
-            )
+            .reduce((sum, order) => sum + Number(order.amount || 0), 0)
     );
 
     $("pendingOrders").textContent = bn(
-        currentOrders.filter(
-            order => order.status === "পেন্ডিং"
-        ).length
+        currentOrders.filter(order => order.status === "পেন্ডিং").length
     );
 
     $("deliveredOrders").textContent = bn(
-        currentOrders.filter(
-            order => order.status === "ডেলিভারড"
-        ).length
+        currentOrders.filter(order => order.status === "ডেলিভারড").length
     );
 
     if (!filtered.length) {
@@ -426,9 +436,7 @@ function renderOrders() {
 
             <p>
                 ☎ ${escapeHtml(order.phone || "নম্বর নেই")}
-                ${order.address
-                    ? " · " + escapeHtml(order.address)
-                    : ""}
+                ${order.address ? " · " + escapeHtml(order.address) : ""}
             </p>
 
             <div class="order-controls">
@@ -512,10 +520,7 @@ $("saveOrder").onclick = async () => {
     const product_name = $("product").value.trim();
     const amountText = $("amount").value;
     const amount = Number(amountText);
-    const quantity = Math.max(
-        1,
-        Number($("quantity").value) || 1
-    );
+    const quantity = Math.max(1, Number($("quantity").value) || 1);
 
     if (
         !customer_name ||
@@ -524,9 +529,7 @@ $("saveOrder").onclick = async () => {
         !Number.isFinite(amount) ||
         amount < 0
     ) {
-        showMessage(
-            "কাস্টমারের নাম, পণ্যের নাম ও সঠিক টাকা পূরণ করুন।"
-        );
+        showMessage("কাস্টমারের নাম, পণ্যের নাম ও সঠিক টাকা পূরণ করুন।");
         return;
     }
 
@@ -541,22 +544,14 @@ $("saveOrder").onclick = async () => {
         address: $("address").value.trim()
     };
 
-    const { error } = await db
-        .from("orders")
-        .insert(payload);
+    const { error } = await db.from("orders").insert(payload);
 
     if (error) {
         showMessage("অর্ডার সংরক্ষণ হয়নি: " + error.message);
         return;
     }
 
-    [
-        "customer",
-        "phone",
-        "product",
-        "amount",
-        "address"
-    ].forEach(id => {
+    ["customer", "phone", "product", "amount", "address"].forEach(id => {
         $(id).value = "";
     });
 
@@ -574,21 +569,11 @@ $("search").addEventListener("input", renderOrders);
 
 function switchTab(tab) {
     document.querySelectorAll("[data-tab]").forEach(button => {
-        button.classList.toggle(
-            "active",
-            button.dataset.tab === tab
-        );
+        button.classList.toggle("active", button.dataset.tab === tab);
     });
 
-    $("ordersTab").classList.toggle(
-        "hidden",
-        tab !== "orders"
-    );
-
-    $("addTab").classList.toggle(
-        "hidden",
-        tab !== "add"
-    );
+    $("ordersTab").classList.toggle("hidden", tab !== "orders");
+    $("addTab").classList.toggle("hidden", tab !== "add");
 }
 
 document.querySelectorAll("[data-tab]").forEach(button => {
@@ -621,4 +606,4 @@ if ("serviceWorker" in navigator) {
 </script>
 
 </body>
-</html>
+    </html>
