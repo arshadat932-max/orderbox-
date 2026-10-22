@@ -2,7 +2,7 @@
   "id": "com.orderbox.app",
   "name": "OrderBox",
   "short_name": "OrderBox",
-  "description": "আপনার অনলাইন অর্ডার ম্যানেজার",
+  "description": "আপনার অনলাইন অর্ডার ম্যানেজমেন্ট অ্যাপ",
   "lang": "bn",
   "dir": "ltr",
   "start_url": "./index.html",
@@ -11,25 +11,9 @@
   "orientation": "portrait",
   "background_color": "#f4f7f6",
   "theme_color": "#0b6e4f",
-  "categories": ["business", "productivity"],
-  "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
-  ]
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "prefer_related_applications": false
 }
