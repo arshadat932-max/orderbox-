@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0a0d14">
+<title>আধিবা</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#0a0d14;--panel:#111722;--line:#1f2937;--text:#e6edf6;--muted:#8b98a9;--accent:#4f8cff;--me:#a8d1ff;--meText:#0b1b33}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;min-height:0;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;display:flex;flex-direction:column;height:100dvh}
+header{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top,0px));background:var(--panel);border-bottom:1px solid var(--line);position:relative;z-index:5}
+header h1{margin:0;font-size:20px;letter-spacing:.5px}header p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+.iconbtn{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--text);display:grid;place-items:center;cursor:pointer;flex:none}
+.iconbtn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.iconbtn.fill{background:var(--accent);border-color:var(--accent);color:#fff}.iconbtn:disabled{opacity:.5}
+#chat{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:14px;overflow-wrap:anywhere}
+.msg{max-width:86%;padding:10px 12px;border-radius:14px;margin:10px 0;white-space:pre-wrap;line-height:1.55;overflow-wrap:anywhere}
+.msg .who{font-size:12px;font-weight:700;margin-bottom:3px;opacity:.75}
+.msg.me{background:var(--me);color:var(--meText);margin-left:auto;border-bottom-right-radius:4px}
+.msg.ai{background:var(--panel);border:1px solid var(--line);margin-right:auto;border-bottom-left-radius:4px}
+.acts{display:flex;gap:14px;align-items:center;margin-top:6px}
+.spk{width:22px;height:22px;padding:0;border:0;background:transparent;color:var(--accent);cursor:pointer;display:grid;place-items:center}
+.spk svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.note{background:transparent;border:1px dashed var(--line);color:var(--muted);border-radius:12px;padding:10px 12px;margin:10px 0;font-size:14px;white-space:pre-wrap}
+.bar{flex:0 0 auto;display:flex;gap:8px;align-items:center;padding:10px 12px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));background:var(--panel);border-top:1px solid var(--line);position:relative;z-index:5}
+.bar input{flex:1;min-width:0;height:44px;border-radius:22px;border:1px solid var(--line);background:var(--bg);color:var(--text);padding:0 16px;font-size:16px;font-family:inherit;outline:none}
+.bar input:focus{border-color:var(--accent)}
+#menu{position:absolute;right:12px;top:calc(60px + env(safe-area-inset-top,0px));background:var(--panel);border:1px solid var(--line);border-radius:12px;min-width:210px;padding:6px;display:none;z-index:20;box-shadow:0 8px 24px #0008}
+#menu.open{display:block}#menu button{display:block;width:100%;text-align:left;background:transparent;border:0;color:var(--text);padding:11px 12px;border-radius:8px;font-size:14px;font-family:inherit}
+#menu .danger{color:#f87171}
+#hist{position:fixed;inset:0;background:var(--bg);z-index:30;display:none;flex-direction:column;height:100dvh}
+#hist.open{display:flex}#hist .top{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top,0px));background:var(--panel);border-bottom:1px solid var(--line)}
+#hist h2{margin:0;font-size:17px}#histList{flex:1;min-height:0;overflow-y:auto;padding:12px}
+.row{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+.row .open{flex:1;min-width:0;text-align:left;background:transparent;border:0;color:var(--text);padding:12px;font-family:inherit}
+.row .t{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .d{font-size:12px;color:var(--muted);margin-top:3px}
+.row .x{background:transparent;border:0;color:#f87171;padding:12px;font-size:12px;font-family:inherit}
+.newchat{margin:0 12px 4px;height:42px;border-radius:12px;border:0;background:var(--accent);color:#fff;font-size:15px;font-family:inherit}
+</style>
+</head>
+<body>
+<header><div><h1>আধিবা</h1><p>তোমার ব্যক্তিগত সহকারী</p></div><button class="iconbtn" id="menuBtn" type="button" aria-label="মেনু"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></button></header>
+<div id="menu">
+<button data-act="new">নতুন চ্যাট</button><button data-act="hist">ইতিহাস</button><button data-act="mem">স্মৃতি দেখো</button><button data-act="tts">কণ্ঠ পরীক্ষা</button><button data-act="clearMem" class="danger">সব স্মৃতি মুছো</button><button data-act="clearAll" class="danger">সব ইতিহাস মুছো</button>
+</div>
+<div id="chat" aria-live="polite"></div>
+<div class="bar">
+<input id="msg" type="text" placeholder="মেসেজ লেখো..." autocomplete="off" enterkeyhint="send">
+<button class="iconbtn" id="micBtn" type="button" aria-label="ভয়েস"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+<button class="iconbtn fill" id="send" type="button" aria-label="পাঠাও"><svg viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg></button>
+</div>
+<div id="hist"><div class="top"><h2>ইতিহাস</h2><button class="iconbtn" id="histClose" type="button" aria-label="বন্ধ"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div style="padding-top:12px"><button class="newchat" id="histNew" type="button">+ নতুন চ্যাট</button></div><div id="histList"></div></div>
+<script>
+"use strict";
+const SUPABASE_URL="https://wftlnzhyvbhmhemqvryh.supabase.co";
+const SUPABASE_KEY="sb_publishable_kKya52PtdbcqZIB1kvvHGg_vTc4CeNK";
+const FN_URL=SUPABASE_URL+"/functions/v1/amar-ai";
+const LS_MSGS="adhiba_msgs_v1",LS_CHAT="adhiba_chat_v1",LS_MEM="adhiba_mem_v1";
+const $=id=>document.getElementById(id);
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+const newId=()=>crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2);
+let db=null;try{if(window.supabase)db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY)}catch(e){console.error(e)}
+let cloud=!!db,chatId=ls.get(LS_CHAT,null)||newId(),current=[],busy=false;ls.set(LS_CHAT,chatId);
+async function insertMsg(role,content){const row={chat_id:chatId,role,content};if(cloud){try{const{data,error}=await db.from("chat_messages").insert(row).select().single();if(!error&&data)return data;console.error(error)}catch(e){console.error(e)}cloud=false}const r={...row,id:"l"+Date.now()+Math.random().toString(16).slice(2),created_at:new Date().toISOString()};const all=ls.get(LS_MSGS,[]);all.push(r);ls.set(LS_MSGS,all);return r}
+async function getAllMsgs(){let out=[];if(cloud){try{const{data,error}=await db.from("chat_messages").select("*").order("created_at",{ascending:true}).limit(3000);if(!error&&data)out=data;else cloud=false}catch{cloud=false}}return out.concat(ls.get(LS_MSGS,[])).sort((a,b)=>a.created_at<b.created_at?-1:1)}
+async function getMsgs(cid){return(await getAllMsgs()).filter(m=>m.chat_id===cid)}
+async function deleteMsg(id){if(String(id).startsWith("l")){ls.set(LS_MSGS,ls.get(LS_MSGS,[]).filter(m=>m.id!==id));return}if(db)try{await db.from("chat_messages").delete().eq("id",id)}catch(e){console.error(e)}}
+async function deleteChat(cid){ls.set(LS_MSGS,ls.get(LS_MSGS,[]).filter(m=>m.chat_id!==cid));if(db)try{await db.from("chat_messages").delete().eq("chat_id",cid)}catch(e){console.error(e)}}
+async function deleteAllChats(){ls.set(LS_MSGS,[]);if(db)try{await db.from("chat_messages").delete().not("id","is",null)}catch(e){console.error(e)}}
+async function saveMem(text){if(db)try{const{error}=await db.from("memories").insert({text});if(!error)return true}catch(e){console.error(e)}const l=ls.get(LS_MEM,[]);l.push({text,created_at:new Date().toISOString()});ls.set(LS_MEM,l);return false}
+async function getMems(){let out=[];if(db)try{const{data,error}=await db.from("memories").select("text,created_at").order("created_at",{ascending:true}).limit(200);if(!error&&data)out=data}catch{}return out.concat(ls.get(LS_MEM,[]))}
+async function clearMems(){ls.set(LS_MEM,[]);if(db)try{await db.from("memories").delete().not("id","is",null)}catch{}}
+function scrollDown(){const c=$("chat");c.scrollTop=c.scrollHeight}
+function note(text){const d=document.createElement("div");d.className="note";d.textContent=text;$("chat").appendChild(d);scrollDown();return d}
+function bubble(m){const w=$("welcome");if(w)w.remove();const d=document.createElement("div");d.className="msg "+(m.role==="user"?"me":"ai");const who=document.createElement("div");who.className="who";who.textContent=m.role==="user"?"আমি":"আধিবা";const t=document.createElement("div");t.textContent=m.content;const acts=document.createElement("div");acts.className="acts";if(m.role!=="user"){const sp=document.createElement("button");sp.type="button";sp.className="spk";sp.setAttribute("aria-label","শুনুন");sp.innerHTML='<svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>';sp.onclick=()=>playVoice(m.id,m.content,sp);acts.append(sp)}const x=document.createElement("button");x.type="button";x.className="del";x.textContent="মুছো";x.onclick=async()=>{if(!confirm("এই মেসেজটি মুছবে?"))return;await deleteMsg(m.id);current=current.filter(c=>c.id!==m.id);d.remove()};acts.append(x);d.append(who,t,acts);$("chat").appendChild(d);scrollDown()}
+function renderChat(){$("chat").textContent="";if(!current.length){const n=note('হ্যালো! আমি আধিবা। কিছু মনে রাখতে চাইলে লেখো: "মনে রাখো ..."');n.id="welcome"}else current.forEach(bubble)}
+let audioEl=null,audioCache=new Map();
+function pcmToWavUrl(b64){const bin=atob(b64),n=bin.length,buf=new ArrayBuffer(44+n),v=new DataView(buf);const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};w(0,"RIFF");v.setUint32(4,36+n,true);w(8,"WAVE");w(12,"fmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,24000,true);v.setUint32(28,48000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,"data");v.setUint32(40,n,true);const u8=new Uint8Array(buf);for(let i=0;i<n;i++)u8[44+i]=bin.charCodeAt(i);return URL.createObjectURL(new Blob([buf],{type:"audio/wav"}))}
+async function playVoice(key,text,btn){if(audioEl){audioEl.pause();audioEl=null}btn.classList.add("loading");try{let url=audioCache.get(key);if(!url){const res=await fetch(FN_URL,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY},body:JSON.stringify({tts:true,text})});let data={};try{data=await res.json()}catch{}if(!res.ok)throw Error(data.error||("HTTP "+res.status));url=pcmToWavUrl(data.audio);audioCache.set(key,url)}audioEl=new Audio(url);await audioEl.play()}catch(e){note("কণ্ঠ চালানো যায়নি। কারণ: "+e.message)}finally{btn.classList.remove("loading")}}
+async function reply(text){text=text.replace(/অনিক ভাই(?![\u09AF\u09DF])/g,"অনিক ভাইয়া");const am=await insertMsg("assistant",text);current.push(am);bubble(am)}
+async function send(){if(busy)return;const text=$("msg").value.trim();if(!text)return;$("msg").value="";busy=true;$("send").disabled=true;try{const um=await insertMsg("user",text);current.push(um);bubble(um);if(text.startsWith("মনে রাখো")){const item=text.replace(/^মনে রাখো[\s:,-]*/,"").trim();if(!item){await reply("কী মনে রাখতে হবে, লিখে দাও।");return}const ok=await saveMem(item);await reply(ok?"মনে রাখলাম।":"মনে রাখলাম (শুধু এই ব্রাউজারে)।");return}const wait=note("ভাবছি...");try{const mems=(await getMems()).map(m=>m.text);const ctx=current.slice(-13,-1).map(m=>(m.role==="user"?"আমি: ":"আধিবা: ")+m.content);const memories=["তোমার নাম আধিবা।",...mems,...(ctx.length?["এই চ্যাটের আগের কথোপকথন:",...ctx]:[])];const res=await fetch(FN_URL,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY},body:JSON.stringify({message:text,memories})});let data={};try{data=await res.json()}catch{}if(!res.ok)throw Error(data.error||("HTTP "+res.status));wait.remove();await reply(data.answer||"উত্তর পাইনি।")}catch(e){wait.remove();note("দুঃখিত, সংযোগ করা যায়নি। কারণ: "+e.message)}}finally{busy=false;$("send").disabled=false}}
+function startVoice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){alert("এই ব্রাউজারে ভয়েস ইনপুট নেই। Chrome ব্যবহার করো।");return}const rec=new SR();rec.lang="bn-BD";rec.interimResults=false;rec.maxAlternatives=1;rec.onresult=e=>{$("msg").value=e.results[0][0].transcript;send()};rec.onerror=()=>alert("কথা শনাক্ত করা যায়নি। মাইক্রোফোনের অনুমতি ও ইন্টারনেট পরীক্ষা করো।");try{rec.start()}catch{alert("ভয়েস চালু করা যায়নি।")}}
+function closeHist(){$("hist").classList.remove("open")}
+async function newChat(){chatId=newId();ls.set(LS_CHAT,chatId);current=[];renderChat();closeHist()}
+async function openChat(cid){chatId=cid;ls.set(LS_CHAT,cid);current=await getMsgs(cid);renderChat();closeHist()}
+async function openHist(){$("hist").classList.add("open");const list=$("histList");list.textContent="লোড হচ্ছে...";const all=await getAllMsgs(),map={};all.forEach(m=>{const c=map[m.chat_id]||(map[m.chat_id]={cid:m.chat_id,title:"",last:"",n:0});c.n++;if(!c.title&&m.role==="user")c.title=m.content;if(m.created_at>c.last)c.last=m.created_at});const chats=Object.values(map).sort((a,b)=>a.last<b.last?1:-1);list.textContent="";if(!chats.length){list.textContent="এখনো কোনো ইতিহাস নেই।";return}chats.forEach(c=>{const row=document.createElement("div");row.className="row";const open=document.createElement("button");open.type="button";open.className="open";const t=document.createElement("div");t.className="t";t.textContent=c.title||"নতুন চ্যাট";const d=document.createElement("div");d.className="d";d.textContent=new Date(c.last).toLocaleDateString("bn-BD")+" · "+c.n+" মেসেজ";open.append(t,d);open.onclick=()=>openChat(c.cid);const x=document.createElement("button");x.type="button";x.className="x";x.textContent="মুছো";x.onclick=async()=>{if(!confirm("এই পুরো চ্যাটটি মুছবে?"))return;await deleteChat(c.cid);if(c.cid===chatId){chatId=newId();ls.set(LS_CHAT,chatId);current=[];renderChat()}openHist()};row.append(open,x);list.appendChild(row)})}
+$("menuBtn").addEventListener("click",e=>{e.stopPropagation();$("menu").classList.toggle("open")});document.addEventListener("click",()=>$("menu").classList.remove("open"));
+$("menu").addEventListener("click",async e=>{const act=e.target.dataset&&e.target.dataset.act;if(!act)return;$("menu").classList.remove("open");if(act==="new")newChat();else if(act==="hist")openHist();else if(act==="mem"){const l=await getMems();note(l.length?"স্মৃতি:\n"+l.map((m,i)=>(i+1)+". "+m.text).join("\n"):"এখনো কোনো স্মৃতি নেই।")}else if(act==="tts")playVoice("test","হ্যালো! আমি আধিবা, তোমার ব্যক্তিগত সহকারী।",document.createElement("button"));else if(act==="clearMem"){if(confirm("সব স্মৃতি মুছে ফেলবে?")){await clearMems();note("স্মৃতি মুছে ফেলা হয়েছে।")}}else if(act==="clearAll"&&confirm("সব চ্যাটের ইতিহাস মুছে ফেলবে?")){await deleteAllChats();chatId=newId();ls.set(LS_CHAT,chatId);current=[];renderChat()}});
+$("send").addEventListener("click",send);$("micBtn").addEventListener("click",startVoice);$("msg").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();send()}});
+$("histClose").addEventListener("click",closeHist);$("histNew").addEventListener("click",newChat);
+/* Keep the composer visible when the Android keyboard opens. */
+function fitViewport(){const vv=window.visualViewport;const h=vv?vv.height:window.innerHeight;document.body.style.height=Math.max(240,h)+"px";requestAnimationFrame(()=>{if(document.activeElement===$("msg"))$("msg").scrollIntoView({block:"nearest"})})}
+if(window.visualViewport){window.visualViewport.addEventListener("resize",fitViewport);window.visualViewport.addEventListener("scroll",fitViewport)}window.addEventListener("resize",fitViewport);
+$("msg").addEventListener("focus",()=>setTimeout(fitViewport,180));fitViewport();
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+(async()=>{current=await getMsgs(chatId);renderChat()})();
+</script>
+</body>
+</html>
